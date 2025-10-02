@@ -14,6 +14,6 @@ executables = [Executable("main.py", base=base, icon="chart_converter_icon.ico")
 # --- セットアップ情報の記述 ---
 setup(
     name="Organica 譜面変換ツール",
-    version="0.0.1",
+    version="0.0.2",
     executables=executables
 )

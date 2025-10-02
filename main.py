@@ -14,8 +14,32 @@ NOTE_RANGE_END = 59    # B3のMIDIノート番号
 CRITICAL_VELOCITY_THRESHOLD = 120  # このベロシティ以上のノートはcriticalになります
 DEFAULT_OFFSET = 0   # JSONに出力されるオフセット値
 
+SETTINGS_FILE = "settings.json"
+DEFAULT_LONG_NOTE_THRESHOLD_BEATS = 1  # デフォルト閾値（拍数）
 
-def midi_to_json_score(midi_path, output_path):
+
+def load_settings():
+    """設定ファイルから閾値を読み込む"""
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                settings = json.load(f)
+                return settings.get("long_note_threshold_beats", DEFAULT_LONG_NOTE_THRESHOLD_BEATS)
+        except Exception:
+            pass
+    return DEFAULT_LONG_NOTE_THRESHOLD_BEATS
+
+
+def save_settings(long_note_threshold_beats):
+    """閾値を設定ファイルに保存する"""
+    try:
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump({"long_note_threshold_beats": long_note_threshold_beats}, f)
+    except Exception:
+        pass
+
+
+def midi_to_json_score(midi_path, output_path, long_note_threshold_beats=DEFAULT_LONG_NOTE_THRESHOLD_BEATS):
     """
     MIDIファイルを7レーンのリズムゲーム用JSON譜面データに変換します。
 
@@ -33,6 +57,8 @@ def midi_to_json_score(midi_path, output_path):
         raise IOError(f"MIDIファイルの読み込み中にエラーが発生しました: {e}")
 
     tpb = mid.ticks_per_beat
+    long_note_threshold_ticks = tpb * long_note_threshold_beats
+
     notes_data = []
 
     # --- 初期のBPMと曲名を特定 ---
@@ -98,8 +124,8 @@ def midi_to_json_score(midi_path, output_path):
                     "tick": start_tick
                 }
 
-                # ロングノートか判定 (長さが1拍より長い)
-                if duration > tpb:
+                # ロングノートか判定 (長さが閾値より長い)
+                if duration > long_note_threshold_ticks:
                     note_event["type"] = "long"
                     note_event["duration"] = duration
                 else:
@@ -157,6 +183,9 @@ class Application(tk.Frame):
         self.long_notes_var = tk.StringVar(value="-")
         self.bpm_changes_var = tk.StringVar(value="-")
         self.total_notes_var = tk.StringVar(value="-")
+
+        self.long_note_threshold_beats = load_settings()
+        self.long_note_threshold_var = tk.DoubleVar(value=self.long_note_threshold_beats)
 
         self.create_widgets()
 
@@ -226,6 +255,15 @@ class Application(tk.Frame):
         self.preview_button_convert = ttk.Button(actions_frame, text="プレビュー", command=self.preview_chart_from_convert, state=tk.DISABLED)
         self.preview_button_convert.pack(side=tk.LEFT, padx=5)
 
+        # --- ロングノーツ閾値入力欄 ---
+        threshold_frame = ttk.LabelFrame(parent, text="設定")
+        threshold_frame.pack(fill=tk.X, padx=5, pady=5)
+        ttk.Label(threshold_frame, text="ロングノーツの閾値(単位: 拍): ").pack(side=tk.LEFT, padx=5)
+        threshold_entry = ttk.Entry(threshold_frame, textvariable=self.long_note_threshold_var, width=5)
+        threshold_entry.pack(side=tk.LEFT, padx=5)
+        threshold_entry.bind("<FocusOut>", self.on_threshold_change)
+        threshold_entry.bind("<Return>", self.on_threshold_change)
+
     def create_preview_tab(self, parent):
         """「プレビュー」タブのウィジェットを作成"""
         # --- ファイル選択フレーム ---
@@ -274,6 +312,18 @@ class Application(tk.Frame):
         if path:
             string_var.set(path)
 
+    def on_threshold_change(self, event=None):
+        """閾値変更時の処理（保存＆反映）"""
+        try:
+            value = float(self.long_note_threshold_var.get())
+            if value <= 0:
+                raise ValueError
+            self.long_note_threshold_beats = value
+            save_settings(value)
+        except Exception:
+            messagebox.showwarning("入力エラー", "閾値は正の数値で入力してください。")
+            self.long_note_threshold_var.set(self.long_note_threshold_beats)
+
     def convert_file(self):
         """ファイルを変換し、結果をGUIに表示する"""
         if not self.midi_file_path:
@@ -283,7 +333,11 @@ class Application(tk.Frame):
         self.output_json_path = os.path.splitext(self.midi_file_path)[0] + ".json"
 
         try:
-            result_json = midi_to_json_score(self.midi_file_path, self.output_json_path)
+            result_json = midi_to_json_score(
+                self.midi_file_path,
+                self.output_json_path,
+                long_note_threshold_beats=self.long_note_threshold_beats
+            )
             # ... (メタデータとノーツ数の更新処理)
             self.title_var.set(result_json['title'])
             self.bpm_var.set(result_json['bpm'])
