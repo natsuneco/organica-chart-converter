@@ -137,6 +137,7 @@ class Application(tk.Frame):
         self.master = master
         self.master.title('Organica 譜面変換ツール')
         self.master.geometry('480x550')
+        self.master.iconbitmap(default="chart_convert_icon.ico")
         self.pack(pady=10, padx=10, fill=tk.BOTH, expand=True)
 
         # --- ファイルパス変数 ---
