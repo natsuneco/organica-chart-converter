@@ -1,5 +1,5 @@
 # Organica 譜面変換ツール
-Rleases からダウンロードして使用してください。
+[Rleases](https://github.com/natsuneco/organica-chart-converter/releases) からダウンロードして使用してください。
 
 ## ソースコードから実行する場合
 ### 必要パッケージのインストール
